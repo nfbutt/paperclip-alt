@@ -67,7 +67,30 @@ function BootstrapPendingPage({ hasActiveInvite = false }: { hasActiveInvite?: b
   );
 }
 
+function RoleSelectPage() {
+  const { setRole } = useUserRole();
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="rounded-lg border border-border bg-card p-8 w-full max-w-sm space-y-6">
+        <div>
+          <h1 className="text-xl font-semibold">Welcome to Paperclip</h1>
+          <p className="mt-1 text-sm text-muted-foreground">How would you like to continue?</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <Button className="w-full" onClick={() => setRole("admin")}>
+            Sign in as Admin
+          </Button>
+          <Button variant="outline" className="w-full" onClick={() => setRole("user")}>
+            Continue as User
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CloudAccessGate() {
+  const { roleChosen } = useUserRole();
   const location = useLocation();
   const healthQuery = useQuery({
     queryKey: queryKeys.health,
@@ -113,12 +136,15 @@ function CloudAccessGate() {
     return <Navigate to={`/auth?next=${next}`} replace />;
   }
 
+  if (!isAuthenticatedMode && !roleChosen) {
+    return <RoleSelectPage />;
+  }
+
   return <Outlet />;
 }
 
 function AdminOnly() {
-  const { isAdmin, loading } = useUserRole();
-  if (loading) return null;
+  const { isAdmin } = useUserRole();
   if (!isAdmin) return <Navigate to="../agents/all" replace />;
   return <Outlet />;
 }
@@ -198,8 +224,7 @@ function InboxRootRedirect() {
 }
 
 function BoardRootRedirect() {
-  const { isAdmin, loading } = useUserRole();
-  if (loading) return null;
+  const { isAdmin } = useUserRole();
   return <Navigate to={isAdmin ? "dashboard" : "agents/all"} replace />;
 }
 

@@ -105,39 +105,7 @@ function AdminPasswordForm({ onSuccess, onCancel }: { onSuccess: () => void; onC
   );
 }
 
-function RoleSelectPage() {
-  const { setRole } = useUserRole();
-  const [showPassword, setShowPassword] = useState(false);
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="rounded-lg border border-border bg-card p-8 w-full max-w-sm space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold">Welcome to Paperclip</h1>
-          <p className="mt-1 text-sm text-muted-foreground">How would you like to continue?</p>
-        </div>
-        {showPassword ? (
-          <AdminPasswordForm
-            onSuccess={() => {}}
-            onCancel={() => setShowPassword(false)}
-          />
-        ) : (
-          <div className="flex flex-col gap-3">
-            <Button className="w-full" onClick={() => setShowPassword(true)}>
-              Sign in as Admin
-            </Button>
-            <Button variant="outline" className="w-full" onClick={() => setRole("user")}>
-              Continue as User
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function CloudAccessGate() {
-  const { roleChosen } = useUserRole();
   const location = useLocation();
   const healthQuery = useQuery({
     queryKey: queryKeys.health,
@@ -181,10 +149,6 @@ function CloudAccessGate() {
   if (isAuthenticatedMode && !sessionQuery.data) {
     const next = encodeURIComponent(`${location.pathname}${location.search}`);
     return <Navigate to={`/auth?next=${next}`} replace />;
-  }
-
-  if (!isAuthenticatedMode && !roleChosen) {
-    return <RoleSelectPage />;
   }
 
   return <Outlet />;

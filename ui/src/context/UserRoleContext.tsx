@@ -7,7 +7,6 @@ const STORAGE_KEY = "paperclip.roleChoice";
 interface UserRoleContextValue {
   role: UserRole;
   isAdmin: boolean;
-  roleChosen: boolean;
   setRole: (role: UserRole) => void;
   clearRole: () => void;
 }
@@ -34,7 +33,6 @@ export function UserRoleProvider({ children }: { children: ReactNode }) {
     () => ({
       role: role ?? "user",
       isAdmin: role === "admin",
-      roleChosen: role !== null,
       setRole,
       clearRole,
     }),

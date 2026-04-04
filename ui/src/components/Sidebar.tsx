@@ -20,7 +20,8 @@ import { SidebarAgents } from "./SidebarAgents";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
 import { useUserRole } from "../context/UserRoleContext";
-import { LogOut } from "lucide-react";
+import { LogOut, LogIn } from "lucide-react";
+import { useNavigate } from "@/lib/router";
 import { heartbeatsApi } from "../api/heartbeats";
 import { queryKeys } from "../lib/queryKeys";
 import { useInboxBadge } from "../hooks/useInboxBadge";
@@ -31,6 +32,7 @@ export function Sidebar() {
   const { openNewIssue } = useDialog();
   const { selectedCompanyId, selectedCompany } = useCompany();
   const { isAdmin, clearRole } = useUserRole();
+  const navigate = useNavigate();
   const inboxBadge = useInboxBadge(selectedCompanyId);
   const { data: liveRuns } = useQuery({
     queryKey: queryKeys.liveRuns(selectedCompanyId!),
@@ -140,13 +142,23 @@ export function Sidebar() {
         )}
       </nav>
       <div className="shrink-0 px-3 py-2 border-t border-border">
-        <button
-          onClick={clearRole}
-          className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          <span className="truncate">{isAdmin ? "Sign out (Admin)" : "Sign out (User)"}</span>
-        </button>
+        {isAdmin ? (
+          <button
+            onClick={clearRole}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span className="truncate">Sign out</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="flex items-center gap-2.5 w-full px-3 py-2 text-[13px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+          >
+            <LogIn className="h-4 w-4 shrink-0" />
+            <span className="truncate">Sign in as Admin</span>
+          </button>
+        )}
       </div>
     </aside>
   );

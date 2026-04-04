@@ -70,6 +70,16 @@ import {
   ArrowLeft,
   HelpCircle,
   FolderOpen,
+  FileText,
+  UserCircle,
+  Network,
+  ArrowDownToLine,
+  PlayCircle,
+  ClipboardList,
+  Boxes,
+  Zap,
+  Server,
+  Globe,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -223,9 +233,10 @@ function scrollToContainerBottom(container: ScrollContainer, behavior: ScrollBeh
   container.scrollTo({ top: container.scrollHeight, behavior });
 }
 
-type AgentDetailView = "dashboard" | "instructions" | "configuration" | "skills" | "runs" | "budget";
+type AgentDetailView = "dashboard" | "description" | "instructions" | "configuration" | "skills" | "runs" | "budget";
 
 function parseAgentDetailView(value: string | null): AgentDetailView {
+  if (value === "description") return "description";
   if (value === "instructions" || value === "prompts") return "instructions";
   if (value === "configure" || value === "configuration") return "configuration";
   if (value === "skills") return "skills";
@@ -583,7 +594,7 @@ export function AgentDetail() {
   const { data: allAgents } = useQuery({
     queryKey: queryKeys.agents.list(resolvedCompanyId!),
     queryFn: () => agentsApi.list(resolvedCompanyId!),
-    enabled: !!resolvedCompanyId && needsDashboardData,
+    enabled: !!resolvedCompanyId && (needsDashboardData || activeView === "description"),
   });
 
   const { data: budgetOverview } = useQuery({
@@ -643,17 +654,19 @@ export function AgentDetail() {
       return;
     }
     const canonicalTab =
-      activeView === "instructions"
-        ? "instructions"
-        : activeView === "configuration"
-          ? "configuration"
-          : activeView === "skills"
-            ? "skills"
-            : activeView === "runs"
-              ? "runs"
-              : activeView === "budget"
-                ? "budget"
-              : "dashboard";
+      activeView === "description"
+        ? "description"
+        : activeView === "instructions"
+          ? "instructions"
+          : activeView === "configuration"
+            ? "configuration"
+            : activeView === "skills"
+              ? "skills"
+              : activeView === "runs"
+                ? "runs"
+                : activeView === "budget"
+                  ? "budget"
+                : "dashboard";
     if (routeAgentRef !== canonicalAgentRef || urlTab !== canonicalTab) {
       navigate(`/agents/${canonicalAgentRef}/${canonicalTab}`, { replace: true });
       return;
@@ -766,6 +779,8 @@ export function AgentDetail() {
       if (urlRunId) {
         crumbs.push({ label: "Runs", href: `/agents/${canonicalAgentRef}/runs` });
         crumbs.push({ label: `Run ${urlRunId.slice(0, 8)}` });
+      } else if (activeView === "description") {
+        crumbs.push({ label: "Description" });
       } else if (activeView === "instructions") {
         crumbs.push({ label: "Instructions" });
       } else if (activeView === "configuration") {
@@ -927,6 +942,7 @@ export function AgentDetail() {
           <PageTabBar
             items={isAdmin ? [
               { value: "dashboard", label: "Dashboard" },
+              { value: "description", label: "Description" },
               { value: "instructions", label: "Instructions" },
               { value: "skills", label: "Skills" },
               { value: "configuration", label: "Configuration" },
@@ -934,6 +950,7 @@ export function AgentDetail() {
               { value: "budget", label: "Budget" },
             ] : [
               { value: "dashboard", label: "Dashboard" },
+              { value: "description", label: "Description" },
               { value: "runs", label: "Runs" },
             ]}
             value={activeView}
@@ -1017,6 +1034,16 @@ export function AgentDetail() {
         />
       )}
 
+      {activeView === "description" && (
+        <DescriptionTab
+          agent={agent}
+          allAgents={allAgents ?? []}
+          companyId={resolvedCompanyId ?? undefined}
+          reportsToAgent={reportsToAgent}
+          directReports={directReports}
+        />
+      )}
+
       {activeView === "instructions" && (
         <PromptsTab
           agent={agent}
@@ -1069,6 +1096,362 @@ export function AgentDetail() {
           />
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/* ---- Description tab ---- */
+
+interface DescriptionAbilitiesMCP {
+  id: string;
+  name: string;
+  url: string;
+  settings: { key: string; value: string }[];
+  agentIds: string[];
+}
+interface DescriptionAbilitiesConnector {
+  id: string;
+  name: string;
+  type: string;
+}
+interface DescriptionAbilitiesAPI {
+  id: string;
+  name: string;
+  baseUrl: string;
+}
+
+function readAbilitiesFromStorage<T>(companyId: string | undefined, section: string, fallback: T): T {
+  if (!companyId) return fallback;
+  try {
+    const raw = localStorage.getItem(`paperclip.abilities.${companyId}.${section}`);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const connectorTypeLabels: Record<string, string> = {
+  database: "Database",
+  local_files: "Local Files",
+  gdrive: "Google Drive",
+  onedrive: "OneDrive",
+};
+
+const connectorTypeColors: Record<string, string> = {
+  database: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300",
+  local_files: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  gdrive: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  onedrive: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+};
+
+function DescriptionChip({ label, color, icon: Icon }: { label: string; color: string; icon?: React.ElementType }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-black/[0.06] dark:border-white/[0.06]", color)}>
+      {Icon && <Icon className="h-3 w-3 shrink-0" />}
+      {label}
+    </span>
+  );
+}
+
+function DescriptionSection({ title, icon: Icon, iconColor, children }: {
+  title: string;
+  icon: React.ElementType;
+  iconColor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card">
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
+        <div className={cn("flex h-6 w-6 items-center justify-center rounded-md", iconColor)}>
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+        <h3 className="text-sm font-semibold">{title}</h3>
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
+function DescriptionTab({
+  agent,
+  allAgents,
+  companyId,
+  reportsToAgent,
+  directReports,
+}: {
+  agent: AgentDetailRecord;
+  allAgents: Agent[];
+  companyId: string | undefined;
+  reportsToAgent: Agent | undefined;
+  directReports: Agent[];
+}) {
+  const { data: skillsSnapshot } = useQuery({
+    queryKey: queryKeys.agents.skills(agent.id),
+    queryFn: () => agentsApi.skills(agent.id, companyId),
+    enabled: Boolean(companyId),
+  });
+
+  const mcpServers = readAbilitiesFromStorage<DescriptionAbilitiesMCP[]>(companyId, "mcps", []);
+  const connectors = readAbilitiesFromStorage<DescriptionAbilitiesConnector[]>(companyId, "connectors", []);
+  const apis = readAbilitiesFromStorage<DescriptionAbilitiesAPI[]>(companyId, "apis", []);
+
+  const agentMCPs = mcpServers.filter((m) => m.agentIds.includes(agent.id));
+  const hasAbilities = agentMCPs.length > 0 || connectors.length > 0 || apis.length > 0;
+
+  const installedSkills = (skillsSnapshot?.entries ?? []).filter(
+    (e) => e.state === "installed" || e.state === "configured" || e.state === "available",
+  );
+  const activeSkills = (skillsSnapshot?.entries ?? []).filter((e) => e.desired);
+
+  const adapterLabel = adapterLabels[agent.adapterType] ?? agent.adapterType;
+  const roleLabel = roleLabels[agent.role] ?? agent.role;
+
+  // Infer triggers from adapter config
+  const cfg = agent.adapterConfig as Record<string, unknown>;
+  const hasTimerTrigger = typeof cfg?.timerIntervalSeconds === "number" || typeof cfg?.heartbeatIntervalSeconds === "number";
+  const timerInterval = (cfg?.timerIntervalSeconds ?? cfg?.heartbeatIntervalSeconds) as number | undefined;
+
+  return (
+    <div className="space-y-5 max-w-4xl">
+
+      {/* Capabilities / Purpose */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+            <FileText className="h-3.5 w-3.5" />
+          </div>
+          <h3 className="text-sm font-semibold">Purpose & Capabilities</h3>
+        </div>
+        <div className="px-4 py-4">
+          {agent.capabilities ? (
+            <MarkdownBody className="text-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              {agent.capabilities}
+            </MarkdownBody>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">
+              No description provided. Add one in the Configuration tab under "Capabilities".
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Identity + Org row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+        {/* Identity */}
+        <DescriptionSection title="Identity" icon={UserCircle} iconColor="bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
+          <dl className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-muted-foreground">Role</dt>
+              <dd>
+                <DescriptionChip label={roleLabel} color="bg-muted text-foreground" />
+              </dd>
+            </div>
+            {agent.title && (
+              <div className="flex items-center justify-between">
+                <dt className="text-xs text-muted-foreground">Title</dt>
+                <dd className="text-xs font-medium">{agent.title}</dd>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-muted-foreground">Adapter</dt>
+              <dd>
+                <DescriptionChip label={adapterLabel} color="bg-muted text-foreground" />
+              </dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-muted-foreground">Status</dt>
+              <dd><StatusBadge status={agent.status} /></dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-xs text-muted-foreground">Created</dt>
+              <dd className="text-xs text-muted-foreground">{formatDate(agent.createdAt)}</dd>
+            </div>
+          </dl>
+        </DescriptionSection>
+
+        {/* Org */}
+        <DescriptionSection title="Organisation" icon={Network} iconColor="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+          <div className="space-y-3">
+            {reportsToAgent ? (
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground">Reports to</div>
+                <Link
+                  to={`/agents/${reportsToAgent.id}/dashboard`}
+                  className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 hover:bg-accent/50 transition-colors no-underline"
+                >
+                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent shrink-0">
+                    <AgentIcon icon={reportsToAgent.icon} className="h-4 w-4 text-foreground/70" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">{reportsToAgent.name}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{roleLabels[reportsToAgent.role] ?? reportsToAgent.role}</div>
+                  </div>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground ml-auto shrink-0" />
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground">Reports to</div>
+                <div className="text-xs text-muted-foreground italic">Top-level (no manager)</div>
+              </div>
+            )}
+
+            {directReports.length > 0 && (
+              <div className="space-y-1">
+                <div className="text-xs text-muted-foreground">Direct reports ({directReports.length})</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {directReports.map((r) => (
+                    <Link
+                      key={r.id}
+                      to={`/agents/${r.id}/dashboard`}
+                      className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent/50 transition-colors no-underline"
+                    >
+                      <AgentIcon icon={r.icon} className="h-3 w-3 text-foreground/70" />
+                      <span className="truncate max-w-[120px]">{r.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!reportsToAgent && directReports.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">No reporting relationships configured.</p>
+            )}
+          </div>
+        </DescriptionSection>
+      </div>
+
+      {/* How this agent is triggered */}
+      <DescriptionSection title="How It Receives Work" icon={ArrowDownToLine} iconColor="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <DescriptionChip label="On-demand" color="bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" icon={PlayCircle} />
+            <DescriptionChip label="Assignment" color="bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300" icon={ClipboardList} />
+            {hasTimerTrigger && (
+              <DescriptionChip
+                label={timerInterval ? `Timer · every ${timerInterval}s` : "Timer"}
+                color="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                icon={Timer}
+              />
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            This agent can be woken by task assignments, manual invocations{hasTimerTrigger ? ", and an automatic timer" : ""}.
+            It inspects its inbox and any pending issues each time it runs.
+          </p>
+        </div>
+      </DescriptionSection>
+
+      {/* Skills */}
+      <DescriptionSection title="Skills" icon={Boxes} iconColor="bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+        {skillsSnapshot === undefined ? (
+          <div className="flex gap-2">
+            <Skeleton className="h-6 w-20 rounded-full" />
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
+        ) : activeSkills.length === 0 && installedSkills.length === 0 ? (
+          <p className="text-xs text-muted-foreground italic">No skills assigned. Add skills in the Skills tab.</p>
+        ) : (
+          <div className="space-y-3">
+            {activeSkills.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {activeSkills.map((skill) => (
+                  <span
+                    key={skill.key}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
+                      skill.state === "installed" || skill.state === "configured"
+                        ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
+                        : skill.state === "missing" || skill.state === "stale"
+                          ? "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800"
+                          : "bg-muted text-muted-foreground border-border",
+                    )}
+                  >
+                    <span className={cn(
+                      "h-1.5 w-1.5 rounded-full shrink-0",
+                      skill.state === "installed" || skill.state === "configured" ? "bg-emerald-500" :
+                      skill.state === "missing" ? "bg-red-500" : "bg-muted-foreground",
+                    )} />
+                    {skill.runtimeName ?? skill.key}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span>{activeSkills.length} active skill{activeSkills.length !== 1 ? "s" : ""}</span>
+              {skillsSnapshot.warnings.length > 0 && (
+                <span className="text-amber-600 dark:text-amber-400">· {skillsSnapshot.warnings.length} warning{skillsSnapshot.warnings.length !== 1 ? "s" : ""}</span>
+              )}
+            </div>
+          </div>
+        )}
+      </DescriptionSection>
+
+      {/* Abilities: MCPs, Connectors, APIs */}
+      {hasAbilities && (
+        <DescriptionSection title="Connected Abilities" icon={Zap} iconColor="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300">
+          <div className="space-y-4">
+            {agentMCPs.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">MCP Servers</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {agentMCPs.map((mcp) => (
+                    <div key={mcp.id} className="flex items-start gap-2.5 rounded-lg border border-border px-3 py-2.5">
+                      <div className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-md bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 shrink-0">
+                        <Server className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium truncate">{mcp.name}</div>
+                        <div className="text-[11px] text-muted-foreground truncate font-mono">{mcp.url}</div>
+                        {mcp.settings.length > 0 && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">{mcp.settings.length} setting{mcp.settings.length !== 1 ? "s" : ""} configured</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {connectors.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Connectors</div>
+                <div className="flex flex-wrap gap-2">
+                  {connectors.map((c) => (
+                    <DescriptionChip
+                      key={c.id}
+                      label={`${connectorTypeLabels[c.type] ?? c.type}: ${c.name}`}
+                      color={connectorTypeColors[c.type] ?? "bg-muted text-foreground"}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {apis.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">APIs</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {apis.map((api) => (
+                    <div key={api.id} className="flex items-start gap-2.5 rounded-lg border border-border px-3 py-2.5">
+                      <div className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-md bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 shrink-0">
+                        <Globe className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium truncate">{api.name}</div>
+                        <div className="text-[11px] text-muted-foreground truncate font-mono">{api.baseUrl}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </DescriptionSection>
+      )}
+
     </div>
   );
 }

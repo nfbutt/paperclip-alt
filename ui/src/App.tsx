@@ -68,21 +68,46 @@ function BootstrapPendingPage({ hasActiveInvite = false }: { hasActiveInvite?: b
   );
 }
 
-function RoleSelectPage() {
+function AdminPasswordForm({ onSuccess, onCancel }: { onSuccess: () => void; onCancel?: () => void }) {
   const { setRole } = useUserRole();
-  const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
 
-  function submitAdmin(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
     if (password === "password") {
       setRole("admin");
+      onSuccess();
     } else {
       setError(true);
       setPassword("");
     }
   }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3">
+      <input
+        type="password"
+        autoFocus
+        placeholder="Admin password"
+        value={password}
+        onChange={(e) => { setPassword(e.target.value); setError(false); }}
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+      />
+      {error && <p className="text-xs text-destructive">Incorrect password.</p>}
+      <Button type="submit" className="w-full">Sign in</Button>
+      {onCancel && (
+        <Button type="button" variant="ghost" className="w-full" onClick={onCancel}>
+          Back
+        </Button>
+      )}
+    </form>
+  );
+}
+
+function RoleSelectPage() {
+  const { setRole } = useUserRole();
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -92,21 +117,10 @@ function RoleSelectPage() {
           <p className="mt-1 text-sm text-muted-foreground">How would you like to continue?</p>
         </div>
         {showPassword ? (
-          <form onSubmit={submitAdmin} className="flex flex-col gap-3">
-            <input
-              type="password"
-              autoFocus
-              placeholder="Admin password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setError(false); }}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-            {error && <p className="text-xs text-destructive">Incorrect password.</p>}
-            <Button type="submit" className="w-full">Sign in</Button>
-            <Button type="button" variant="ghost" className="w-full" onClick={() => { setShowPassword(false); setError(false); setPassword(""); }}>
-              Back
-            </Button>
-          </form>
+          <AdminPasswordForm
+            onSuccess={() => {}}
+            onCancel={() => setShowPassword(false)}
+          />
         ) : (
           <div className="flex flex-col gap-3">
             <Button className="w-full" onClick={() => setShowPassword(true)}>
@@ -178,7 +192,19 @@ function CloudAccessGate() {
 
 function AdminOnly() {
   const { isAdmin } = useUserRole();
-  if (!isAdmin) return <Navigate to="../agents/all" replace />;
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="rounded-lg border border-border bg-card p-8 w-full max-w-sm space-y-6">
+          <div>
+            <h1 className="text-xl font-semibold">Admin access required</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Sign in as admin to view this page.</p>
+          </div>
+          <AdminPasswordForm onSuccess={() => {}} />
+        </div>
+      </div>
+    );
+  }
   return <Outlet />;
 }
 

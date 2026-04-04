@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,20 @@ function BootstrapPendingPage({ hasActiveInvite = false }: { hasActiveInvite?: b
 
 function RoleSelectPage() {
   const { setRole } = useUserRole();
+  const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(false);
+
+  function submitAdmin(e: React.FormEvent) {
+    e.preventDefault();
+    if (password === "password") {
+      setRole("admin");
+    } else {
+      setError(true);
+      setPassword("");
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="rounded-lg border border-border bg-card p-8 w-full max-w-sm space-y-6">
@@ -76,14 +91,32 @@ function RoleSelectPage() {
           <h1 className="text-xl font-semibold">Welcome to Paperclip</h1>
           <p className="mt-1 text-sm text-muted-foreground">How would you like to continue?</p>
         </div>
-        <div className="flex flex-col gap-3">
-          <Button className="w-full" onClick={() => setRole("admin")}>
-            Sign in as Admin
-          </Button>
-          <Button variant="outline" className="w-full" onClick={() => setRole("user")}>
-            Continue as User
-          </Button>
-        </div>
+        {showPassword ? (
+          <form onSubmit={submitAdmin} className="flex flex-col gap-3">
+            <input
+              type="password"
+              autoFocus
+              placeholder="Admin password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError(false); }}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+            {error && <p className="text-xs text-destructive">Incorrect password.</p>}
+            <Button type="submit" className="w-full">Sign in</Button>
+            <Button type="button" variant="ghost" className="w-full" onClick={() => { setShowPassword(false); setError(false); setPassword(""); }}>
+              Back
+            </Button>
+          </form>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <Button className="w-full" onClick={() => setShowPassword(true)}>
+              Sign in as Admin
+            </Button>
+            <Button variant="outline" className="w-full" onClick={() => setRole("user")}>
+              Continue as User
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

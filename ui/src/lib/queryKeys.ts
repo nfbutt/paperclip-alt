@@ -87,6 +87,7 @@ export const queryKeys = {
   },
   auth: {
     session: ["auth", "session"] as const,
+    me: ["auth", "me"] as const,
   },
   instance: {
     generalSettings: ["instance", "general-settings"] as const,

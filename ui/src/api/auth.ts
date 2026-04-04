@@ -43,7 +43,28 @@ async function authPost(path: string, body: Record<string, unknown>) {
   return payload;
 }
 
+export type UserMe = {
+  userId: string;
+  isInstanceAdmin: boolean;
+};
+
 export const authApi = {
+  getMe: async (): Promise<UserMe | null> => {
+    const res = await fetch("/api/users/me", {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    if (res.status === 401) return null;
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload || typeof payload !== "object") return null;
+    const p = payload as Record<string, unknown>;
+    if (typeof p.userId !== "string") return null;
+    return {
+      userId: p.userId,
+      isInstanceAdmin: Boolean(p.isInstanceAdmin),
+    };
+  },
+
   getSession: async (): Promise<AuthSession | null> => {
     const res = await fetch("/api/auth/get-session", {
       credentials: "include",

@@ -96,6 +96,7 @@ import {
   arraysEqual,
   isReadOnlyUnmanagedSkillEntry,
 } from "../lib/agent-skills-state";
+import { useUserRole } from "../context/UserRoleContext";
 
 const runStatusIcons: Record<string, { icon: typeof CheckCircle2; color: string }> = {
   succeeded: { icon: CheckCircle2, color: "text-green-600 dark:text-green-400" },
@@ -525,6 +526,7 @@ export function AgentDetail() {
   const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
   const { closePanel } = usePanel();
   const { openNewIssue } = useDialog();
+  const { isAdmin } = useUserRole();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -808,14 +810,20 @@ export function AgentDetail() {
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
-          <AgentIconPicker
-            value={agent.icon}
-            onChange={(icon) => updateIcon.mutate(icon)}
-          >
-            <button className="shrink-0 flex items-center justify-center h-12 w-12 rounded-lg bg-accent hover:bg-accent/80 transition-colors">
+          {isAdmin ? (
+            <AgentIconPicker
+              value={agent.icon}
+              onChange={(icon) => updateIcon.mutate(icon)}
+            >
+              <button className="shrink-0 flex items-center justify-center h-12 w-12 rounded-lg bg-accent hover:bg-accent/80 transition-colors">
+                <AgentIcon icon={agent.icon} className="h-6 w-6" />
+              </button>
+            </AgentIconPicker>
+          ) : (
+            <div className="shrink-0 flex items-center justify-center h-12 w-12 rounded-lg bg-accent">
               <AgentIcon icon={agent.icon} className="h-6 w-6" />
-            </button>
-          </AgentIconPicker>
+            </div>
+          )}
           <div className="min-w-0">
             <h2 className="text-2xl font-bold truncate">{agent.name}</h2>
             <p className="text-sm text-muted-foreground truncate">
@@ -825,25 +833,31 @@ export function AgentDetail() {
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openNewIssue({ assigneeAgentId: agent.id })}
-          >
-            <Plus className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">Assign Task</span>
-          </Button>
-          <RunButton
-            onClick={() => agentAction.mutate("invoke")}
-            disabled={agentAction.isPending || isPendingApproval}
-            label="Run Heartbeat"
-          />
-          <PauseResumeButton
-            isPaused={agent.status === "paused"}
-            onPause={() => agentAction.mutate("pause")}
-            onResume={() => agentAction.mutate("resume")}
-            disabled={agentAction.isPending || isPendingApproval}
-          />
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openNewIssue({ assigneeAgentId: agent.id })}
+            >
+              <Plus className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Assign Task</span>
+            </Button>
+          )}
+          {isAdmin && (
+            <RunButton
+              onClick={() => agentAction.mutate("invoke")}
+              disabled={agentAction.isPending || isPendingApproval}
+              label="Run Heartbeat"
+            />
+          )}
+          {isAdmin && (
+            <PauseResumeButton
+              isPaused={agent.status === "paused"}
+              onPause={() => agentAction.mutate("pause")}
+              onResume={() => agentAction.mutate("resume")}
+              disabled={agentAction.isPending || isPendingApproval}
+            />
+          )}
           <span className="hidden sm:inline"><StatusBadge status={agent.status} /></span>
           {mobileLiveRun && (
             <Link
@@ -876,26 +890,30 @@ export function AgentDetail() {
                 <Copy className="h-3 w-3" />
                 Copy Agent ID
               </button>
-              <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50"
-                onClick={() => {
-                  resetTaskSession.mutate(null);
-                  setMoreOpen(false);
-                }}
-              >
-                <RotateCcw className="h-3 w-3" />
-                Reset Sessions
-              </button>
-              <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 text-destructive"
-                onClick={() => {
-                  agentAction.mutate("terminate");
-                  setMoreOpen(false);
-                }}
-              >
-                <Trash2 className="h-3 w-3" />
-                Terminate
-              </button>
+              {isAdmin && (
+                <button
+                  className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50"
+                  onClick={() => {
+                    resetTaskSession.mutate(null);
+                    setMoreOpen(false);
+                  }}
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Reset Sessions
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 text-destructive"
+                  onClick={() => {
+                    agentAction.mutate("terminate");
+                    setMoreOpen(false);
+                  }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Terminate
+                </button>
+              )}
             </PopoverContent>
           </Popover>
         </div>
@@ -907,13 +925,16 @@ export function AgentDetail() {
           onValueChange={(value) => navigate(`/agents/${canonicalAgentRef}/${value}`)}
         >
           <PageTabBar
-            items={[
+            items={isAdmin ? [
               { value: "dashboard", label: "Dashboard" },
               { value: "instructions", label: "Instructions" },
               { value: "skills", label: "Skills" },
               { value: "configuration", label: "Configuration" },
               { value: "runs", label: "Runs" },
               { value: "budget", label: "Budget" },
+            ] : [
+              { value: "dashboard", label: "Dashboard" },
+              { value: "runs", label: "Runs" },
             ]}
             value={activeView}
             onValueChange={(value) => navigate(`/agents/${canonicalAgentRef}/${value}`)}

@@ -122,6 +122,16 @@ export async function createApp(
       },
     });
   });
+  app.get("/api/users/me", (req, res) => {
+    if (req.actor.type !== "board" || !req.actor.userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    res.json({
+      userId: req.actor.userId,
+      isInstanceAdmin: req.actor.isInstanceAdmin ?? false,
+    });
+  });
   if (opts.betterAuthHandler) {
     app.all("/api/auth/*authPath", opts.betterAuthHandler);
   }

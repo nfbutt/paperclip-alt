@@ -13,6 +13,7 @@ import { SidebarProvider } from "./context/SidebarContext";
 import { DialogProvider } from "./context/DialogContext";
 import { ToastProvider } from "./context/ToastContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { UserRoleProvider } from "./context/UserRoleContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { initPluginBridge } from "./plugins/bridge-init";
 import { PluginLauncherProvider } from "./plugins/launchers";
@@ -41,6 +42,7 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <BrowserRouter>
+          <UserRoleProvider>
           <CompanyProvider>
             <ToastProvider>
               <LiveUpdatesProvider>
@@ -60,6 +62,7 @@ createRoot(document.getElementById("root")!).render(
               </LiveUpdatesProvider>
             </ToastProvider>
           </CompanyProvider>
+          </UserRoleProvider>
         </BrowserRouter>
       </ThemeProvider>
     </QueryClientProvider>

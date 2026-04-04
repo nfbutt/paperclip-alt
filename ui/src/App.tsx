@@ -45,6 +45,7 @@ import { NotFoundPage } from "./pages/NotFound";
 import { queryKeys } from "./lib/queryKeys";
 import { useCompany } from "./context/CompanyContext";
 import { useDialog } from "./context/DialogContext";
+import { useUserRole } from "./context/UserRoleContext";
 import { loadLastInboxTab } from "./lib/inbox";
 import { shouldRedirectCompanylessRouteToOnboarding } from "./lib/onboarding-route";
 
@@ -115,64 +116,78 @@ function CloudAccessGate() {
   return <Outlet />;
 }
 
+function AdminOnly() {
+  const { isAdmin, loading } = useUserRole();
+  if (loading) return null;
+  if (!isAdmin) return <Navigate to="../agents/all" replace />;
+  return <Outlet />;
+}
+
 function boardRoutes() {
   return (
     <>
-      <Route index element={<Navigate to="dashboard" replace />} />
-      <Route path="dashboard" element={<Dashboard />} />
-      <Route path="onboarding" element={<OnboardingRoutePage />} />
-      <Route path="companies" element={<Companies />} />
-      <Route path="company/settings" element={<CompanySettings />} />
-      <Route path="company/export/*" element={<CompanyExport />} />
-      <Route path="company/import" element={<CompanyImport />} />
-      <Route path="skills/*" element={<CompanySkills />} />
-      <Route path="settings" element={<LegacySettingsRedirect />} />
-      <Route path="settings/*" element={<LegacySettingsRedirect />} />
-      <Route path="plugins/:pluginId" element={<PluginPage />} />
-      <Route path="org" element={<OrgChart />} />
-      <Route path="agents" element={<Navigate to="/agents/all" replace />} />
+      {/* Agents & run executions — accessible to all roles */}
+      <Route path="agents" element={<Navigate to="agents/all" replace />} />
       <Route path="agents/all" element={<Agents />} />
       <Route path="agents/active" element={<Agents />} />
       <Route path="agents/paused" element={<Agents />} />
       <Route path="agents/error" element={<Agents />} />
-      <Route path="agents/new" element={<NewAgent />} />
       <Route path="agents/:agentId" element={<AgentDetail />} />
       <Route path="agents/:agentId/:tab" element={<AgentDetail />} />
       <Route path="agents/:agentId/runs/:runId" element={<AgentDetail />} />
-      <Route path="projects" element={<Projects />} />
-      <Route path="projects/:projectId" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/overview" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/issues" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/issues/:filter" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/configuration" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/budget" element={<ProjectDetail />} />
-      <Route path="issues" element={<Issues />} />
-      <Route path="issues/all" element={<Navigate to="/issues" replace />} />
-      <Route path="issues/active" element={<Navigate to="/issues" replace />} />
-      <Route path="issues/backlog" element={<Navigate to="/issues" replace />} />
-      <Route path="issues/done" element={<Navigate to="/issues" replace />} />
-      <Route path="issues/recent" element={<Navigate to="/issues" replace />} />
-      <Route path="issues/:issueId" element={<IssueDetail />} />
-      <Route path="routines" element={<Routines />} />
-      <Route path="routines/:routineId" element={<RoutineDetail />} />
-      <Route path="execution-workspaces/:workspaceId" element={<ExecutionWorkspaceDetail />} />
-      <Route path="goals" element={<Goals />} />
-      <Route path="goals/:goalId" element={<GoalDetail />} />
-      <Route path="approvals" element={<Navigate to="/approvals/pending" replace />} />
-      <Route path="approvals/pending" element={<Approvals />} />
-      <Route path="approvals/all" element={<Approvals />} />
-      <Route path="approvals/:approvalId" element={<ApprovalDetail />} />
-      <Route path="costs" element={<Costs />} />
-      <Route path="activity" element={<Activity />} />
-      <Route path="inbox" element={<InboxRootRedirect />} />
-      <Route path="inbox/mine" element={<Inbox />} />
-      <Route path="inbox/recent" element={<Inbox />} />
-      <Route path="inbox/unread" element={<Inbox />} />
-      <Route path="inbox/all" element={<Inbox />} />
-      <Route path="inbox/new" element={<Navigate to="/inbox/mine" replace />} />
-      <Route path="design-guide" element={<DesignGuide />} />
-      <Route path="tests/ux/runs" element={<RunTranscriptUxLab />} />
-      <Route path=":pluginRoutePath" element={<PluginPage />} />
+
+      {/* Admin-only routes */}
+      <Route element={<AdminOnly />}>
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="onboarding" element={<OnboardingRoutePage />} />
+        <Route path="companies" element={<Companies />} />
+        <Route path="company/settings" element={<CompanySettings />} />
+        <Route path="company/export/*" element={<CompanyExport />} />
+        <Route path="company/import" element={<CompanyImport />} />
+        <Route path="skills/*" element={<CompanySkills />} />
+        <Route path="settings" element={<LegacySettingsRedirect />} />
+        <Route path="settings/*" element={<LegacySettingsRedirect />} />
+        <Route path="plugins/:pluginId" element={<PluginPage />} />
+        <Route path="org" element={<OrgChart />} />
+        <Route path="agents/new" element={<NewAgent />} />
+        <Route path="projects" element={<Projects />} />
+        <Route path="projects/:projectId" element={<ProjectDetail />} />
+        <Route path="projects/:projectId/overview" element={<ProjectDetail />} />
+        <Route path="projects/:projectId/issues" element={<ProjectDetail />} />
+        <Route path="projects/:projectId/issues/:filter" element={<ProjectDetail />} />
+        <Route path="projects/:projectId/configuration" element={<ProjectDetail />} />
+        <Route path="projects/:projectId/budget" element={<ProjectDetail />} />
+        <Route path="issues" element={<Issues />} />
+        <Route path="issues/all" element={<Navigate to="issues" replace />} />
+        <Route path="issues/active" element={<Navigate to="issues" replace />} />
+        <Route path="issues/backlog" element={<Navigate to="issues" replace />} />
+        <Route path="issues/done" element={<Navigate to="issues" replace />} />
+        <Route path="issues/recent" element={<Navigate to="issues" replace />} />
+        <Route path="issues/:issueId" element={<IssueDetail />} />
+        <Route path="routines" element={<Routines />} />
+        <Route path="routines/:routineId" element={<RoutineDetail />} />
+        <Route path="execution-workspaces/:workspaceId" element={<ExecutionWorkspaceDetail />} />
+        <Route path="goals" element={<Goals />} />
+        <Route path="goals/:goalId" element={<GoalDetail />} />
+        <Route path="approvals" element={<Navigate to="approvals/pending" replace />} />
+        <Route path="approvals/pending" element={<Approvals />} />
+        <Route path="approvals/all" element={<Approvals />} />
+        <Route path="approvals/:approvalId" element={<ApprovalDetail />} />
+        <Route path="costs" element={<Costs />} />
+        <Route path="activity" element={<Activity />} />
+        <Route path="inbox" element={<InboxRootRedirect />} />
+        <Route path="inbox/mine" element={<Inbox />} />
+        <Route path="inbox/recent" element={<Inbox />} />
+        <Route path="inbox/unread" element={<Inbox />} />
+        <Route path="inbox/all" element={<Inbox />} />
+        <Route path="inbox/new" element={<Navigate to="inbox/mine" replace />} />
+        <Route path="design-guide" element={<DesignGuide />} />
+        <Route path="tests/ux/runs" element={<RunTranscriptUxLab />} />
+        <Route path=":pluginRoutePath" element={<PluginPage />} />
+      </Route>
+
+      {/* Default redirect for non-admin users landing at root */}
+      <Route index element={<BoardRootRedirect />} />
       <Route path="*" element={<NotFoundPage scope="board" />} />
     </>
   );
@@ -180,6 +195,12 @@ function boardRoutes() {
 
 function InboxRootRedirect() {
   return <Navigate to={`/inbox/${loadLastInboxTab()}`} replace />;
+}
+
+function BoardRootRedirect() {
+  const { isAdmin, loading } = useUserRole();
+  if (loading) return null;
+  return <Navigate to={isAdmin ? "dashboard" : "agents/all"} replace />;
 }
 
 function LegacySettingsRedirect() {

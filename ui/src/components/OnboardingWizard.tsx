@@ -54,7 +54,8 @@ import {
   Check,
   Loader2,
   ChevronDown,
-  X
+  X,
+  Webhook,
 } from "lucide-react";
 import { HermesIcon } from "./HermesIcon";
 
@@ -451,6 +452,23 @@ export function OnboardingWizard() {
               ? "No OpenCode models discovered. Run `opencode models` and authenticate providers."
               : `Configured OpenCode model is unavailable: ${selectedModelId}`
           );
+          return;
+        }
+      }
+
+      if (adapterType === "http") {
+        if (!url.trim()) {
+          setError("Webhook URL is required for the HTTP adapter.");
+          return;
+        }
+        try {
+          const parsed = new URL(url.trim());
+          if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+            setError("Webhook URL must use http:// or https://.");
+            return;
+          }
+        } catch {
+          setError("Webhook URL is not a valid URL.");
           return;
         }
       }
@@ -855,6 +873,12 @@ export function OnboardingWizard() {
                             desc: "Local multi-provider agent"
                           },
                           {
+                            value: "http" as const,
+                            label: "HTTP Webhook",
+                            icon: Webhook,
+                            desc: "Invoke any external service"
+                          },
+                          {
                             value: "openclaw_gateway" as const,
                             label: "OpenClaw Gateway",
                             icon: Bot,
@@ -1138,22 +1162,79 @@ export function OnboardingWizard() {
 
                   {(adapterType === "http" ||
                     adapterType === "openclaw_gateway") && (
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">
-                        {adapterType === "openclaw_gateway"
-                          ? "Gateway URL"
-                          : "Webhook URL"}
-                      </label>
-                      <input
-                        className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm font-mono outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
-                        placeholder={
-                          adapterType === "openclaw_gateway"
-                            ? "ws://127.0.0.1:18789"
-                            : "https://..."
-                        }
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                      />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block">
+                          {adapterType === "openclaw_gateway"
+                            ? "Gateway URL"
+                            : "Webhook URL"}
+                        </label>
+                        <input
+                          className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm font-mono outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                          placeholder={
+                            adapterType === "openclaw_gateway"
+                              ? "ws://127.0.0.1:18789"
+                              : "https://..."
+                          }
+                          value={url}
+                          onChange={(e) => setUrl(e.target.value)}
+                        />
+                      </div>
+                      {adapterType === "http" && (
+                        <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+                          <p className="text-[11px] font-medium text-muted-foreground">
+                            Paperclip will POST this payload to your URL on each heartbeat:
+                          </p>
+                          <pre className="text-[10px] font-mono text-muted-foreground leading-relaxed whitespace-pre-wrap">
+{`{
+  "agentId": "<uuid>",
+  "runId": "<uuid>",
+  "context": {
+    "taskId": "...",
+    "wakeReason": "...",
+    "commentId": "..."
+  }
+}`}
+                          </pre>
+                          <p className="text-[11px] text-muted-foreground">
+                            Your endpoint must return HTTP 2xx. Runs time out after 15 seconds.
+                          </p>
+                        </div>
+                      )}
+                      {adapterType === "http" && (
+                        <div className="space-y-2 rounded-md border border-border p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <p className="text-xs font-medium">Connectivity check</p>
+                              <p className="text-[11px] text-muted-foreground">
+                                Verifies your webhook URL is reachable.
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2.5 text-xs"
+                              disabled={adapterEnvLoading || !url.trim()}
+                              onClick={() => void runAdapterEnvironmentTest()}
+                            >
+                              {adapterEnvLoading ? "Testing..." : "Test now"}
+                            </Button>
+                          </div>
+                          {adapterEnvError && (
+                            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-[11px] text-destructive">
+                              {adapterEnvError}
+                            </div>
+                          )}
+                          {adapterEnvResult && adapterEnvResult.status === "pass" ? (
+                            <div className="flex items-center gap-2 rounded-md border border-green-300 dark:border-green-500/40 bg-green-50 dark:bg-green-500/10 px-3 py-2 text-xs text-green-700 dark:text-green-300 animate-in fade-in slide-in-from-bottom-1 duration-300">
+                              <Check className="h-3.5 w-3.5 shrink-0" />
+                              <span className="font-medium">Reachable</span>
+                            </div>
+                          ) : adapterEnvResult ? (
+                            <AdapterEnvironmentResult result={adapterEnvResult} />
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

@@ -37,6 +37,7 @@ const SUPPORTED_ADVANCED_ADAPTER_TYPES = new Set<CreateConfigValues["adapterType
   "cursor",
   "hermes_local",
   "openclaw_gateway",
+  "http",
 ]);
 
 function createValuesForAdapterType(
@@ -178,6 +179,24 @@ export function NewAgent() {
         return;
       }
     }
+    if (configValues.adapterType === "http") {
+      const webhookUrl = (configValues.url ?? "").trim();
+      if (!webhookUrl) {
+        setFormError("Webhook URL is required for the HTTP adapter.");
+        return;
+      }
+      try {
+        const parsed = new URL(webhookUrl);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          setFormError("Webhook URL must use http:// or https://.");
+          return;
+        }
+      } catch {
+        setFormError("Webhook URL is not a valid URL.");
+        return;
+      }
+    }
+
     createAgent.mutate({
       name: name.trim(),
       role: effectiveRole,
